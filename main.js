@@ -150,7 +150,7 @@ async function connect() {
 
     updateStatus('Connecting...');
 
-    const endpoint = `https://us-central1-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/us-central1/publishers/google/models/gemini-1.5-flash-001`;
+    const endpoint = `https://us-central1-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/us-central1/publishers/google/models/gemini-1.5-flash-002`;
     log(`Using endpoint: ${endpoint}`);
 
     try {
