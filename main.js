@@ -1,3 +1,5 @@
+console.log('main.js is loaded');
+
 // Global variables
 let peerConnection;
 let dataChannel;
@@ -7,24 +9,52 @@ let videoProcessor;
 let videoGenerator;
 
 // DOM elements
-const connectBtn = document.getElementById('connectBtn');
-const disconnectBtn = document.getElementById('disconnectBtn');
-const statusElement = document.getElementById('status');
-const logElement = document.getElementById('log');
-const responseElement = document.getElementById('response');
-const localVideo = document.getElementById('localVideo');
-const overlayTextInput = document.getElementById('overlayText');
-const updateOverlayBtn = document.getElementById('updateOverlay');
+let connectBtn;
+let disconnectBtn;
+let statusElement;
+let logElement;
+let responseElement;
+let localVideo;
+let updateOverlayBtn;
+
+// Overlay settings
+let overlayText = '';
+let overlayColor = '#FFFFFF';  // Default text color
+let overlayBgColor = '#000000';  // Default background color
+let overlayTransparency = 1;    // Default transparency (fully opaque)
+let overlayPosition = 'top-left';  // Default position
+let fontSize = 24; // Default font size
+
+// Ensure DOM is fully loaded before attaching event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    connectBtn = document.getElementById('connectBtn');
+    disconnectBtn = document.getElementById('disconnectBtn');
+    statusElement = document.getElementById('status');
+    logElement = document.getElementById('log');
+    responseElement = document.getElementById('response');
+    localVideo = document.getElementById('localVideo');
+    updateOverlayBtn = document.getElementById('updateOverlay');
+
+    // Event listeners
+    connectBtn.addEventListener('click', connect);
+    disconnectBtn.addEventListener('click', disconnect);
+    updateOverlayBtn.addEventListener('click', updateOverlayText);
+
+    log('Application initialized and DOM fully loaded');
+});
 
 // Logging function
 function log(message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
     console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
-    const p = document.createElement('p');
-    p.textContent = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
-    p.className = type;
-    logElement.appendChild(p);
-    logElement.scrollTop = logElement.scrollHeight;
+    
+    if (logElement) {
+        const p = document.createElement('p');
+        p.textContent = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+        p.className = type;
+        logElement.appendChild(p);
+        logElement.scrollTop = logElement.scrollHeight;
+    }
 }
 
 function updateStatus(message) {
@@ -32,11 +62,87 @@ function updateStatus(message) {
     log(message, 'status');
 }
 
+function updateOverlayText() {
+    overlayText = document.getElementById('overlayText').value;
+    overlayColor = document.getElementById('overlayColor').value;
+    overlayBgColor = document.getElementById('overlayBgColor').value;
+    overlayTransparency = parseFloat(document.getElementById('overlayTransparency').value);
+    overlayPosition = document.getElementById('overlayPosition').value;
+    fontSize = parseInt(document.getElementById('fontSize').value, 10); // Get font size from input
+    log(`Updated overlay: Text="${overlayText}", Text Color=${overlayColor}, Background Color=${overlayBgColor}, Transparency=${overlayTransparency}, Font Size=${fontSize}, Position=${overlayPosition}`);
+}
+
+async function videoFrameTransformer(frame, controller) {
+    const width = frame.displayWidth;
+    const height = frame.displayHeight;
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+
+    ctx.drawImage(frame, 0, 0, width, height);
+
+    if (overlayText) {
+        const boxPadding = 10;
+        ctx.font = `${fontSize}px Arial`;
+        const lines = wrapText(ctx, overlayText, width - 2 * boxPadding);
+        
+        // Dynamically resize the box based on text
+        const boxWidth = width - 2 * boxPadding;
+        const boxHeight = lines.length * (fontSize + 5) + 2 * boxPadding; // Adjust height for each line of text
+
+        // Set the transparency for the entire text box
+        ctx.globalAlpha = overlayTransparency;
+
+        // Draw the background of the text box
+        ctx.fillStyle = overlayBgColor;
+        const x = overlayPosition.includes('right') ? width - boxWidth - boxPadding : boxPadding;
+        const y = overlayPosition.includes('bottom') ? height - boxHeight - boxPadding : boxPadding;
+        ctx.fillRect(x, y, boxWidth, boxHeight);
+
+        // Set the text color and transparency
+        ctx.fillStyle = overlayColor;
+        ctx.globalAlpha = 1; // Text should be fully opaque
+
+        // Draw the text line by line inside the box
+        lines.forEach((line, i) => {
+            ctx.fillText(line, x + boxPadding, y + (fontSize + 5) * (i + 1)); // Adjust vertical spacing for each line
+        });
+    }
+
+    const newFrame = new VideoFrame(canvas, {
+        timestamp: frame.timestamp,
+        duration: frame.duration
+    });
+
+    controller.enqueue(newFrame);
+    frame.close();
+}
+
+// Function to wrap text into lines that fit the canvas width
+function wrapText(ctx, text, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + ' ' + word).width;
+        if (width < maxWidth) {
+            currentLine += ' ' + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    lines.push(currentLine); // Add the last line
+    return lines;
+}
+
+// WebRTC connection logic remains unchanged (for simplicity)
 async function connect() {
     log('Connect button clicked');
     const projectId = document.getElementById('projectId').value;
     const token = document.getElementById('token').value;
-    
+
     if (!projectId || !token) {
         updateStatus('Please enter both Project ID and Access Token');
         return;
@@ -155,78 +261,6 @@ async function connect() {
     }
 }
 
-let overlayText = '';
-
-let frameCount = 0;
-const LOG_INTERVAL = 120; // Log every 30 frames (about once per second at 30fps)
-
-async function videoFrameTransformer(frame, controller) {
-    frameCount++;
-    
-    try {
-        const width = frame.displayWidth;
-        const height = frame.displayHeight;
-
-        if (width === undefined || height === undefined) {
-            controller.enqueue(frame);
-            return;
-        }
-
-        if (frameCount % LOG_INTERVAL === 0) {
-            log(`Processing video frame: width=${width}, height=${height}`);
-        }
-        
-        const canvas = new OffscreenCanvas(width, height);
-        const ctx = canvas.getContext('2d');
-
-        ctx.drawImage(frame, 0, 0, width, height);
-
-        if (overlayText) {
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'white';
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 2;
-            
-            const words = overlayText.split(' ');
-            let line = '';
-            let y = 30;
-            for (let i = 0; i < words.length; i++) {
-                const testLine = line + words[i] + ' ';
-                const metrics = ctx.measureText(testLine);
-                if (metrics.width > width - 20 && i > 0) {
-                    ctx.strokeText(line, 10, y);
-                    ctx.fillText(line, 10, y);
-                    line = words[i] + ' ';
-                    y += 30;
-                } else {
-                    line = testLine;
-                }
-            }
-            ctx.strokeText(line, 10, y);
-            ctx.fillText(line, 10, y);
-
-            if (frameCount % LOG_INTERVAL === 0) {
-                log(`Applied overlay text: ${overlayText}`);
-            }
-        }
-
-        const newFrame = new VideoFrame(canvas, {
-            timestamp: frame.timestamp,
-            duration: frame.duration
-        });
-
-        controller.enqueue(newFrame);
-    } catch (error) {
-        if (frameCount % LOG_INTERVAL === 0) {
-            log(`Error in videoFrameTransformer: ${error.message}`, 'error');
-            console.error('Detailed error:', error);
-        }
-        controller.enqueue(frame);
-    } finally {
-        frame.close();
-    }
-}
-
 function handleTrack(event) {
     log(`Received ${event.track.kind} track`);
     if (event.track.kind === 'audio') {
@@ -287,64 +321,3 @@ function handleMessage(event) {
     responseElement.appendChild(p);
     responseElement.scrollTop = responseElement.scrollHeight;
 }
-
-function updateOverlayText() {
-    overlayText = document.getElementById('overlayText').value;
-    log(`Updated overlay text: ${overlayText}`);
-    previewOverlay();
-}
-
-function previewOverlay() {
-    const previewCanvas = document.createElement('canvas');
-    previewCanvas.width = localVideo.videoWidth;
-    previewCanvas.height = localVideo.videoHeight;
-    const ctx = previewCanvas.getContext('2d');
-
-    ctx.drawImage(localVideo, 0, 0, previewCanvas.width, previewCanvas.height);
-
-    if (overlayText) {
-        ctx.font = '24px Arial';
-        ctx.fillStyle = 'white';
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 2;
-        
-        const words = overlayText.split(' ');
-        let line = '';
-        let y = 30;
-        for (let i = 0; i < words.length; i++) {
-            const testLine = line + words[i] + ' ';
-            const metrics = ctx.measureText(testLine);
-            if (metrics.width > previewCanvas.width - 20 && i > 0) {
-                ctx.strokeText(line, 10, y);
-                ctx.fillText(line, 10, y);
-                line = words[i] + ' ';
-                y += 30;
-            } else {
-                line = testLine;
-            }
-        }
-        ctx.strokeText(line, 10, y);
-        ctx.fillText(line, 10, y);
-    }
-
-    // Replace the video element with the canvas temporarily
-    const parent = localVideo.parentElement;
-    parent.insertBefore(previewCanvas, localVideo);
-    localVideo.style.display = 'none';
-    previewCanvas.style.display = 'block';
-
-    // Restore the video after 2 seconds
-    setTimeout(() => {
-        parent.removeChild(previewCanvas);
-        localVideo.style.display = 'block';
-    }, 2000);
-}
-
-// Event listeners
-connectBtn.addEventListener('click', connect);
-disconnectBtn.addEventListener('click', disconnect);
-updateOverlayBtn.addEventListener('click', updateOverlayText);
-
-// Initialize
-updateStatus('Ready to connect');
-log('Application initialized');
