@@ -314,6 +314,10 @@ class WebRTCManager {
             const endpoint = `https://us-central1-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/us-central1/publishers/google/models/gemini-1.5-flash-002`;
             
             await this.initializeConnection(endpoint, token);
+
+            // Update API Endpoint and Model Name in WebRTC Metrics
+            document.getElementById('apiEndpoint').textContent = endpoint; 
+            document.getElementById('modelName').textContent = 'gemini-1.5-flash-002'; // Or get this dynamically
             
         } catch (error) {
             await this.handleConnectionError(error);
