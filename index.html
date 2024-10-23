@@ -2,161 +2,387 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">   
+
     <title>Vertex - Gemini Multimodal Streaming API Demo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
+        /* Google Material Theme */
+        :root {
+            --google-blue: #1a73e8;
+            --google-blue-hover: #1557b0;
+            --google-red: #d93025;
+            --google-red-hover: #b91d1d;
+            --google-surface: #fff;
+            --google-grey-200: #c1d5f3;
+            --google-grey-700: #5f6368;
+            --google-grey-900: #202124;
+            --user-message-bg: #a2edeb;
+            --ai-message-bg: #8cbdee;
+            --shadow-1: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Roboto', sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #f4f4f9;
-            color: #333;
+            padding: 24px;
+            background: #f8f9fa;
+            color: var(--google-grey-900);
         }
+
         .container {
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
-            background-color: #fff;
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;   
+
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-family: 'Google Sans', sans-serif;
+            font-weight: 400;
+            font-size: 24px;
+            color: var(--google-grey-900);
+            margin: 0;
+        }
+
+        /* Controls */
+        .controls {
+            background: var(--google-surface);
             border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            padding: 20px;
+            padding: 16px;
+            box-shadow: var(--shadow-1);
+            margin-bottom: 24px;
         }
-        .card {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin-bottom: 20px;
+
+        input[type="text"],
+        input[type="password"] {
+            border: 1px solid var(--google-grey-200);
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 14px;
+            margin-right: 12px;
+            width: 200px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--google-blue);
+            outline: none;
+        }
+
+        button {
+            font-family: 'Google Sans', sans-serif;
+            padding: 8px 24px;
+            border-radius: 4px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button[id="connectBtn"] {
+            background: var(--google-blue);
+            color: white;
+        }
+
+        button[id="connectBtn"]:hover {
+            background: var(--google-blue-hover);
+        }
+
+        button[id="disconnectBtn"] {
+            background: var(--google-red);
+            color: white;
+        }
+
+        button[id="disconnectBtn"]:hover {
+            background: var(--google-red-hover);
+        }
+
+        /* Grid Layout */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .section {
+            background: var(--google-surface);
             border-radius: 8px;
-            background-color: #fafafa;
+            padding: 16px;
+            box-shadow: var(--shadow-1);
         }
-        h1 {
-            text-align: center;
+
+        .section h2 {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 16px;
+            font-weight: 500;
+            margin: 0 0 16px 0;
+            color: var(--google-grey-900);
         }
-        h2 {
-            border-bottom: 2px solid #ddd;
-            padding-bottom: 5px;
+
+        /* Conversation Styles */
+        .conversation-container {
+            height: 300px;
+            overflow-y: auto;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            }
+
+            .message-group {
+            margin-bottom: 16px;
+            display: flex; /* Use flexbox for better alignment */
+            flex-direction: column; /* Stack messages vertically within a group */
+            }
+
+            .message {
+            max-width: 80%; /* Slightly reduced width for better visual balance */
+            padding: 12px 16px;
+            border-radius: 20px; /* More pronounced rounded corners */
+            font-size: 14px;
+            line-height: 1.5;
+            position: relative;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+            }
+
+            .user-message {
+            background: var(--user-message-bg); /* Light blue background for user */
+            color: #174ea6;
+            align-self: flex-end; 
+            }
+
+            .gemini-message {
+            background: var(--ai-message-bg); /* White background for AI */
+            color: var(--google-grey-900);
+            align-self: flex-start;
+            border-left: 5px solid var(--google-blue); 
+            }
+
+            .message-header {
+            font-size: 12px;
+            color: var(--google-grey-700);
+            margin-bottom: 4px;
+            font-weight: 500;
+            }
+
+            .message-time {
+            font-size: 11px;
+            color: var(--google-grey-700);
+            position: absolute;
+            right: 12px; /* Increased spacing */
+            top: 12px; /* Increased spacing */
+            }
+
+        /* Metrics Styles */
+        .metrics-container {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 13px;
         }
-        #localVideo {
-            width: 100%;
-            max-width: 640px;
-            background-color: #000;
-            border-radius: 8px;
-            margin-bottom: 20px;
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--google-grey-200);
         }
-        #log, #response {
+
+        .metric-value {
+            color: var(--google-blue);
+            font-weight: 500;
+        }
+
+        /* Log Styles */
+        .log-container {
+            background: var(--google-grey-900);
+            color: #fff;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 12px;
+            padding: 12px;
+            border-radius: 4px;
             height: 200px;
             overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            border-radius: 8px;
         }
-        .form-group {
-            margin-bottom: 10px;
+
+        .log-container .info { color: #81c995; }
+        .log-container .error { color: #f28b82; }
+        .log-container .warn { color: #fdd663; }
+        .log-container .status { color: #8ab4f8; }
+
+        /* Overlay Controls */
+        .overlay-control {
+            margin-bottom: 16px;
         }
-        input, textarea, select, button {
+
+        .overlay-control label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--google-grey-700);
+        }
+
+        textarea {
             width: 100%;
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 8px;
-            border: 1px solid #ddd;
+            padding: 8px;
+            border: 1px solid var(--google-grey-200);
+            border-radius: 4px;
+            resize: vertical;
+            font-family: 'Roboto', sans-serif;
         }
-        button {
-            background-color: #4285F4;
+
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--google-grey-200);
+            border-radius: 4px;
+            background: white;
+        }
+
+        #updateOverlay {
+            background: var(--google-blue);
             color: white;
-            cursor: pointer;
+            width: 100%;
+            margin-top: 16px;
         }
-        button:disabled {
-            background-color: #ccc;
-        }
-        .logo-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .logo-container img {
-            width: 150px;
-            height: auto;
-        }
-        .slider-label {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 5px;
+
+        #updateOverlay:hover {
+            background: var(--google-blue-hover);
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h1>Vertex - Gemini Multimodal Streaming API Demo</h1>
-
-        <div class="logo-container">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Google_Cloud_logo.svg/1024px-Google_Cloud_logo.svg.png" alt="Google Cloud Logo">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Google_Gemini_logo.svg/688px-Google_Gemini_logo.svg.png" alt="Gemini Logo">
-        </div>
-
-        <div class="card">
-            <div class="form-group">
-                <input type="text" id="projectId" placeholder="Enter Project ID">
-            </div>
-            <div class="form-group">
-                <input type="password" id="token" placeholder="Enter access token">
-            </div>
-            <div class="form-group">
-                <button id="connectBtn">Connect</button>
-                <button id="disconnectBtn" disabled>Disconnect</button>
-            </div>
-            <div id="status">Status: Disconnected</div>
-        </div>
-
-        <div class="card">
-            <h2>Text Overlay</h2>
-            <textarea id="overlayText" rows="4" placeholder="Enter text to overlay on video"></textarea>
-            <div class="form-group">
-                <label for="overlayColor">Text Color: </label>
-                <input type="color" id="overlayColor" value="#FFFFFF">
-            </div>
-            <div class="form-group">
-                <label for="overlayBgColor">Overlay Box Background Color: </label>
-                <input type="color" id="overlayBgColor" value="#000000">
-            </div>
-            <div class="form-group">
-                <label for="fontSize">Font Size: </label>
-                <input type="number" id="fontSize" min="10" max="100" step="1" value="24">
-            </div>
-            <div class="form-group">
-                <label for="overlayTransparency">Overlay Box Transparency: </label>
-                <input type="range" id="overlayTransparency" min="0" max="1" step="0.1" value="1">
-                <div class="slider-label">
-                    <span>Opaque</span>
-                    <span>Transparent</span>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="overlayPosition">Position: </label>
-                <select id="overlayPosition">
-                    <option value="top-left">Top-Left</option>
-                    <option value="top-right">Top-Right</option>
-                    <option value="bottom-left">Bottom-Left</option>
-                    <option value="bottom-right">Bottom-Right</option>
-                </select>
-            </div>
-            <button id="updateOverlay">Update Overlay</button>
-        </div>
-
-        <div class="card">
-            <h2>Local Video</h2>
-            <video id="localVideo" autoplay playsinline muted></video>
-        </div>
-
-        <div class="card">
-            <h2>Conversation</h2>
-            <div id="response"></div>
-        </div>
-
-        <div class="card">
-            <h2>Log</h2>
-            <div id="log"></div>
+        <div>
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Google_Cloud_logo.svg/1024px-Google_Cloud_logo.svg.png" 
+                 alt="Google Cloud Logo" style="height: 24px;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Google_Gemini_logo.svg/688px-Google_Gemini_logo.svg.png" 
+                 alt="Gemini Logo" style="height: 24px;">
         </div>
     </div>
 
-    <script src="main.js"></script>
+    <div class="input-group">
+        <input type="text" id="projectId" placeholder="Project ID">
+        <input type="password" id="token" placeholder="Access Token">
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn">Disconnect</button>
+        <div id="status">Status: Disconnected</div>
+    </div>
+
+    <div class="content-grid">
+        <div>
+            <div class="section">
+                <h2>Text Overlay Settings</h2>
+                <div class="overlay-controls">
+                    <div>Overlay Text:</div>
+                    <textarea id="overlayText" rows="3"></textarea>
+                    
+                    <div class="color-inputs">
+                        <div>
+                            <div>Text Color:</div>
+                            <input type="color" id="overlayColor" value="#FFFFFF">
+                        </div>
+                        <div>
+                            <div>Background Color:</div>
+                            <input type="color" id="overlayBgColor" value="#000000">
+                        </div>
+                    </div>
+
+                    <div class="slider-container">
+                        <div>Font Size:</div>
+                        <input type="range" id="fontSize" min="8" max="72" value="24">
+                        <span id="fontSizeValue">24px</span>
+                    </div>
+
+                    <div class="slider-container">
+                        <div>Transparency:</div>
+                        <input type="range" id="overlayTransparency" min="0" max="1" step="0.1" value="1">
+                        <span id="transparencyValue">100%</span>
+                    </div>
+
+                    <div>
+                        <div>Position:</div>
+                        <select id="overlayPosition">
+                            <option value="top-left">Top Left</option>
+                            <option value="top-right">Top Right</option>
+                            <option value="bottom-left">Bottom Left</option>
+                            <option value="bottom-right">Bottom Right</option>
+                        </select>
+                    </div>
+
+                    <button id="updateOverlay" style="width: 100%; margin-top: 10px;">Update Overlay</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>WebRTC Metrics</h2>
+                <div class="metrics-container">
+                    <p>
+                        <span>Data Received:</span>
+                        <span id="bytesReceived" class="metrics-value">0 B</span>
+                    </p>
+                    <p>
+                        <span>Data Sent:</span>
+                        <span id="bytesSent" class="metrics-value">0 B</span>
+                    </p>
+                    <p>
+                        <span>Packets Lost:</span>
+                        <span id="packetsLost" class="metrics-value">0</span>
+                    </p>
+                    <p>
+                        <span>Round Trip Time:</span>
+                        <span id="roundTripTime" class="metrics-value">N/A</span>
+                    </p>
+                    <p>
+                        <span>Processing Time:</span>
+                        <span id="processingTime" class="metrics-value">0 ms</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="section">
+                <h2>Local Video</h2>
+                <video id="localVideo" autoplay muted playsinline></video>
+            </div>
+
+            <div class="section">
+                <h2>Conversation</h2>
+                <div id="response" class="conversation-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>System Log</h2>
+        <div id="log" class="log-container"></div>
+    </div>
+
+    <script>
+        document.getElementById('fontSize').addEventListener('input', (e) => {
+            document.getElementById('fontSizeValue').textContent = `${e.target.value}px`;
+        });
+
+        document.getElementById('overlayTransparency').addEventListener('input', (e) => {
+            const percentage = Math.round(e.target.value * 100);
+            document.getElementById('transparencyValue').textContent = `${percentage}%`;
+        });
+    </script>
+    <script src="main.js"></script> 
 </body>
 </html>
