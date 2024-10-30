@@ -308,26 +308,34 @@ class WebRTCManager {
 
     async connect(projectId, token, systemInstructions) {
         try {
-            console.log('Connect called with system instructions:', systemInstructions); // Debug log
+            console.log('Connect called with system instructions:', systemInstructions);
             
             if (!projectId?.trim() || !token?.trim()) {
                 throw new Error('Project ID and Access Token are required');
             }
             
-            const endpoint = `https://us-central1-autopush-aiplatform.sandbox.googleapis.com/v1beta1/projects/visionai-testing-stable/locations/us-central1/publishers/google/models/gemini-1.5-flash-001`;
+            const environment = document.getElementById('environment').value;
+            const model = document.getElementById('model').value;
+            
+            const baseUrl = environment === 'autopush' 
+                ? 'https://us-central1-autopush-aiplatform.sandbox.googleapis.com'
+                : 'https://us-central1-aiplatform.googleapis.com';
+                
+            const endpoint = `${baseUrl}/v1beta1/projects/${projectId}/locations/us-central1/publishers/google/models/${model}`;
+            
+            console.log('Using endpoint:', endpoint); // Debug log
             
             this.projectId = projectId;
             this.token = token;
-            this.systemInstructions = systemInstructions; // Store for retries
+            this.systemInstructions = systemInstructions;
             
             updateStatus('connecting');
     
-            // Update the endpoint and model information
             const apiEndpointEl = document.getElementById('apiEndpoint');
             const modelNameEl = document.getElementById('modelName');
             
             if (apiEndpointEl) apiEndpointEl.textContent = endpoint;
-            if (modelNameEl) modelNameEl.textContent = 'gemini-1.5-flash-001';
+            if (modelNameEl) modelNameEl.textContent = model;
             
             const serverConfig = await this.fetchPeerConnectionInfo(endpoint, token);
             await this.setupPeerConnection(serverConfig);
@@ -413,7 +421,7 @@ class WebRTCManager {
     }
 
     async createAndSendOffer(endpoint, token, systemInstructions) {
-        console.log('Creating offer with system instructions:', systemInstructions); // Debug log
+        console.log('Creating offer with system instructions:', systemInstructions);
         
         const { peerConnection } = this.state.resources;
         if (!peerConnection) {
@@ -423,43 +431,75 @@ class WebRTCManager {
         try {
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
-
-            const requestBody = systemInstructions ? {
-                sdp_offer: JSON.stringify(offer),
-                system_instruction: {
-                    'role': 'system',
-                    'parts': { 'text': systemInstructions }
+    
+            // First try with system instructions
+            if (systemInstructions) {
+                try {
+                    const requestBody = {
+                        sdp_offer: JSON.stringify(offer),
+                        system_instruction: {
+                            'role': 'system',
+                            'parts': { 'text': systemInstructions }
+                        }
+                    };
+    
+                    const response = await fetch(`${endpoint}:exchangeWebRTCSessionOffer`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+    
+                    if (response.ok) {
+                        const responseData = await response.json();
+                        await peerConnection.setRemoteDescription(JSON.parse(responseData.sdpAnswer));
+                        log('Connected with system instructions');
+                        return;
+                    }
+                    // If we get here, the first attempt failed
+                    log('System instructions not supported, retrying without...', 'warn');
+                } catch (error) {
+                    console.log('Failed with system instructions, retrying without:', error);
                 }
-            } : {
+            }
+    
+            // Fallback: Try without system instructions
+            const basicRequestBody = {
                 sdp_offer: JSON.stringify(offer)
             };
-
-            console.log('Request body being sent:', JSON.stringify(requestBody, null, 2)); // Debug log
-
+    
             const response = await fetch(`${endpoint}:exchangeWebRTCSessionOffer`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify(basicRequestBody)
             });
-
-            console.log('Response status:', response.status); // Debug log
-
+    
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Offer exchange error:', errorText); // Debug log
-                throw new Error(`Offer exchange failed: ${response.status} - ${errorText}`);
+                throw new Error(`Offer exchange failed: ${response.status}`);
             }
-
+    
             const responseData = await response.json();
-            console.log('Offer exchange response:', responseData); // Debug log
-            
             await peerConnection.setRemoteDescription(JSON.parse(responseData.sdpAnswer));
+            log('Connected without system instructions (not supported in this environment)', 'warn');
+            
+            // Update UI to show system instructions aren't available
+            const sessionReady = document.getElementById('sessionReady');
+            if (sessionReady) {
+                sessionReady.innerHTML = `
+                    <i class="fas fa-check-circle"></i>
+                    Session ready! (System instructions not supported in this environment)
+                `;
+                sessionReady.style.backgroundColor = '#fef7e0';
+                sessionReady.style.color = '#ea8600';
+            }
             
         } catch (error) {
-            console.error('Complete offer error:', error); // Debug log
+            console.error('Complete offer error:', error);
             throw new Error(`Offer creation/exchange failed: ${error.message}`);
         }
     }

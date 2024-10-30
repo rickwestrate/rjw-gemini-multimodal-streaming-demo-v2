@@ -70,6 +70,27 @@
             margin-bottom: 16px;
         }
 
+        .credentials > div {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        select.form-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        select.form-select:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+
         .system-instructions {
             margin-top: 16px;
         }
@@ -363,6 +384,20 @@
                 <div>
                     <label>Access Token</label>
                     <input type="password" id="token" placeholder="Enter your access token">
+                </div>
+                <div>
+                    <label>Environment</label>
+                    <select id="environment" class="form-select">
+                        <option value="autopush">Autopush (Testing)</option>
+                        <option value="prod">Production</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Model</label>
+                    <select id="model" class="form-select">
+                        <option value="gemini-1.5-flash-001">Gemini 1.5 Flash 001</option>
+                        <option value="gemini-1.5-flash-002">Gemini 1.5 Flash 002</option>
+                    </select>
                 </div>
             </div>
             <div class="system-instructions">
