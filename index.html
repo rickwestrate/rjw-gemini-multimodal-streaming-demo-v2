@@ -11,7 +11,6 @@
             margin: 0;
             font-family: 'Source Sans Pro', sans-serif;
             background: #f8f9fa;
-            color: #202124;
         }
         
         .container {
@@ -42,10 +41,18 @@
             width: auto;
         }
         
-        h1 {
+        h1, h2 {
             margin: 0;
             color: #202124;
+        }
+
+        h1 {
             font-size: 24px;
+            font-weight: 600;
+        }
+
+        h2 {
+            font-size: 18px;
         }
 
         .connection-panel {
@@ -63,10 +70,27 @@
             margin-bottom: 16px;
         }
 
+        .system-instructions {
+            margin-top: 16px;
+        }
+
+        .system-instructions textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
         .connection-controls {
             display: flex;
             align-items: center;
             gap: 12px;
+            margin-top: 16px;
         }
 
         .connection-status {
@@ -165,6 +189,29 @@
             cursor: not-allowed;
         }
 
+        input, textarea, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #5f6368;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
         .content-grid {
             display: grid;
             grid-template-columns: 45% 55%;
@@ -176,40 +223,46 @@
             background: white;
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            padding: 20px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
         }
 
-        .section {
-            margin-bottom: 24px;
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            cursor: pointer;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dadce0;
+            transition: background-color 0.2s;
         }
 
-        .section h2 {
-            margin: 0 0 16px 0;
-            font-size: 18px;
+        .section-header:hover {
+            background: #f1f3f4;
         }
 
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #5f6368;
-            font-weight: 500;
+        .section-header i {
+            transition: transform 0.3s ease;
         }
 
-        input, select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #dadce0;
-            border-radius: 4px;
-            font-size: 14px;
-            transition: border-color 0.2s;
+        .section-content {
+            padding: 16px;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            max-height: 1000px;
+            opacity: 1;
+            overflow: hidden;
         }
 
-        input:focus, select:focus {
-            border-color: #1a73e8;
-            outline: none;
+        .section-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            padding: 0;
+        }
+
+        .section-header i.collapsed {
+            transform: rotate(-90deg);
         }
 
         .color-picker-container {
@@ -224,10 +277,10 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            cursor: pointer;
             padding: 8px;
             border: 1px solid #dadce0;
             border-radius: 4px;
+            cursor: pointer;
             width: 100%;
         }
 
@@ -238,17 +291,13 @@
             border: 2px solid #dadce0;
         }
 
-        .color-picker-label i {
-            color: #5f6368;
-        }
-
         .video-container {
             width: 100%;
             aspect-ratio: 16/9;
             background: #f8f9fa;
             border-radius: 4px;
             overflow: hidden;
-            margin-bottom: 16px;
+            margin: 16px 0;
         }
 
         video {
@@ -257,30 +306,12 @@
             object-fit: cover;
         }
 
-        .metrics-container {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .metric-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            border-bottom: 1px solid #dadce0;
-        }
-
-        .metric-row:last-child {
-            border-bottom: none;
-        }
-
         .conversation-container {
             flex: 1;
             overflow-y: auto;
             padding: 16px;
-            margin-bottom: 16px;
             min-height: 0;
+            margin-bottom: 16px;
         }
 
         .log-container {
@@ -292,6 +323,24 @@
             font-family: 'Roboto Mono', monospace;
             font-size: 12px;
             border: 1px solid #dadce0;
+            margin-bottom: 16px;
+        }
+
+        .metrics-container {
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #dadce0;
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
         }
     </style>
 </head>
@@ -316,6 +365,13 @@
                     <input type="password" id="token" placeholder="Enter your access token">
                 </div>
             </div>
+            <div class="system-instructions">
+                <label>System Instructions</label>
+                <textarea 
+                    id="systemInstructions" 
+                    placeholder="Enter custom system instructions for Gemini (optional)"
+                ></textarea>
+            </div>
             <div class="connection-controls">
                 <button id="connectBtn" class="primary">Connect</button>
                 <button id="disconnectBtn" class="secondary" disabled>Disconnect</button>
@@ -333,52 +389,59 @@
         <div class="content-grid">
             <div class="panel">
                 <div class="section">
-                    <h2>Text Overlay Settings</h2>
-                    <div>
-                        <label>Overlay Text</label>
-                        <input type="text" id="overlayText" placeholder="Enter text to display">
+                    <div class="section-header" onclick="toggleSection('overlaySettings')">
+                        <h2>Text Overlay Settings</h2>
+                        <i class="fas fa-chevron-down" id="overlaySettingsIcon"></i>
                     </div>
-                    
-                    <div style="margin-top: 16px;">
-                        <div class="color-picker-container">
-                            <label class="color-picker-label">
-                                <i class="fas fa-font"></i>
-                                Text Color
-                                <div class="color-preview" id="textColorPreview"></div>
-                                <input type="color" id="overlayColor" value="#FFFFFF" style="opacity: 0; width: 0; position: absolute;">
-                            </label>
+                    <div id="overlaySettings" class="section-content">
+                        <div>
+                            <label>Overlay Text</label>
+                            <input type="text" id="overlayText" placeholder="Enter text to display">
                         </div>
-                        <div class="color-picker-container">
-                            <label class="color-picker-label">
-                                <i class="fas fa-fill-drip"></i>
-                                Background Color
-                                <div class="color-preview" id="bgColorPreview"></div>
-                                <input type="color" id="overlayBgColor" value="#000000" style="opacity: 0; width: 0; position: absolute;">
-                            </label>
+                        
+                        <div style="margin-top: 16px;">
+                            <div class="color-picker-container">
+                                <label class="color-picker-label">
+                                    <i class="fas fa-font"></i>
+                                    Text Color
+                                    <div class="color-preview" id="textColorPreview"></div>
+                                    <input type="color" id="overlayColor" value="#FFFFFF" style="opacity: 0; width: 0; position: absolute;">
+                                </label>
+                            </div>
+                            <div class="color-picker-container">
+                                <label class="color-picker-label">
+                                    <i class="fas fa-fill-drip"></i>
+                                    Background Color
+                                    <div class="color-preview" id="bgColorPreview"></div>
+                                    <input type="color" id="overlayBgColor" value="#000000" style="opacity: 0; width: 0; position: absolute;">
+                                </label>
+                            </div>
                         </div>
-                    </div>
 
-                    <div style="margin-top: 16px;">
-                        <label>Font Size: <span id="fontSizeValue">24px</span></label>
-                        <input type="range" id="fontSize" min="8" max="72" value="24">
-                    </div>
+                        <div style="margin-top: 16px;">
+                            <label>Font Size: <span id="fontSizeValue">24px</span></label>
+                            <input type="range" id="fontSize" min="8" max="72" value="24">
+                        </div>
 
-                    <div style="margin-top: 16px;">
-                        <label>Transparency: <span id="transparencyValue">100%</span></label>
-                        <input type="range" id="overlayTransparency" min="0" max="1" step="0.1" value="1">
-                    </div>
+                        <div style="margin-top: 16px;">
+                            <label>Transparency: <span id="transparencyValue">100%</span></label>
+                            <input type="range" id="overlayTransparency" min="0" max="1" step="0.1" value="1">
+                        </div>
 
-                    <div style="margin-top: 16px;">
-                        <label>Position</label>
-                        <select id="overlayPosition">
-                            <option value="top-left">Top Left</option>
-                            <option value="top-right">Top Right</option>
-                            <option value="bottom-left">Bottom Left</option>
-                            <option value="bottom-right">Bottom Right</option>
-                        </select>
-                    </div>
+                        <div style="margin-top: 16px;">
+                            <label>Position</label>
+                            <select id="overlayPosition">
+                                <option value="top-left">Top Left</option>
+                                <option value="top-right">Top Right</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option value="bottom-right">Bottom Right</option>
+                            </select>
+                        </div>
 
-                    <button id="updateOverlay" class="primary" style="margin-top: 16px;">Update Overlay</button>
+                        <button id="updateOverlay" class="primary" style="margin-top: 16px; width: 100%;">
+                            Update Overlay
+                        </button>
+                    </div>
                 </div>
 
                 <div class="section">
@@ -429,6 +492,35 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Initialize color pickers
+        window.onload = function() {
+            const textColorPreview = document.getElementById('textColorPreview');
+            const bgColorPreview = document.getElementById('bgColorPreview');
+            const textColorPicker = document.getElementById('overlayColor');
+            const bgColorPicker = document.getElementById('overlayBgColor');
+
+            textColorPreview.style.backgroundColor = textColorPicker.value;
+            bgColorPreview.style.backgroundColor = bgColorPicker.value;
+
+            textColorPicker.addEventListener('input', (e) => {
+                textColorPreview.style.backgroundColor = e.target.value;
+            });
+
+            bgColorPicker.addEventListener('input', (e) => {
+                bgColorPreview.style.backgroundColor = e.target.value;
+            });
+        };
+
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            const icon = document.getElementById(sectionId + 'Icon');
+            
+            content.classList.toggle('collapsed');
+            icon.classList.toggle('collapsed');
+        }
+    </script>
     <script src="main.js"></script>
 </body>
 </html>

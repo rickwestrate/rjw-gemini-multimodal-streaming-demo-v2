@@ -306,16 +306,19 @@ class WebRTCManager {
         this.audioElement = null;
     }
 
-    async connect(projectId, token) {
+    async connect(projectId, token, systemInstructions) {
         try {
+            console.log('Connect called with system instructions:', systemInstructions); // Debug log
+            
             if (!projectId?.trim() || !token?.trim()) {
                 throw new Error('Project ID and Access Token are required');
             }
             
-            const endpoint = `https://us-central1-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/us-central1/publishers/google/models/gemini-1.5-flash-002`;
+            const endpoint = `https://us-central1-autopush-aiplatform.sandbox.googleapis.com/v1beta1/projects/visionai-testing-stable/locations/us-central1/publishers/google/models/gemini-1.5-flash-001`;
             
             this.projectId = projectId;
             this.token = token;
+            this.systemInstructions = systemInstructions; // Store for retries
             
             updateStatus('connecting');
     
@@ -324,12 +327,12 @@ class WebRTCManager {
             const modelNameEl = document.getElementById('modelName');
             
             if (apiEndpointEl) apiEndpointEl.textContent = endpoint;
-            if (modelNameEl) modelNameEl.textContent = 'gemini-1.5-flash-002';
+            if (modelNameEl) modelNameEl.textContent = 'gemini-1.5-flash-001';
             
             const serverConfig = await this.fetchPeerConnectionInfo(endpoint, token);
             await this.setupPeerConnection(serverConfig);
             await this.setupMediaStream();
-            await this.createAndSendOffer(endpoint, token);
+            await this.createAndSendOffer(endpoint, token, systemInstructions);
             
             updateStatus('connected');
             
@@ -339,6 +342,7 @@ class WebRTCManager {
     }
 
     async fetchPeerConnectionInfo(endpoint, token) {
+        console.log('Fetching peer connection info'); // Debug log
         const response = await fetch(`${endpoint}:fetchWebRTCPeerConnectionInfo`, {
             method: 'POST',
             headers: {
@@ -349,10 +353,13 @@ class WebRTCManager {
         });
 
         if (!response.ok) {
-            throw new Error(`Server error: ${response.status} ${await response.text()}`);
+            const errorText = await response.text();
+            console.error('Peer connection info error:', errorText); // Debug log
+            throw new Error(`Server error: ${response.status} ${errorText}`);
         }
 
         const { serverConfig } = await response.json();
+        console.log('Received server config:', serverConfig); // Debug log
         return serverConfig;
     }
 
@@ -405,26 +412,62 @@ class WebRTCManager {
         dataChannel.onerror = (error) => log(`Data channel error: ${error.message}`, 'error');
     }
 
-    handleMessage(event) {
-        // First, make sure we have the animation styles
-        if (!document.getElementById('chatAnimations')) {
-            const styleSheet = document.createElement("style");
-            styleSheet.id = 'chatAnimations';
-            styleSheet.textContent = `
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                @keyframes bounce {
-                    0%, 80%, 100% { transform: translateY(0); }
-                    40% { transform: translateY(-4px); }
-                }
-            `;
-            document.head.appendChild(styleSheet);
-        }
-    
-        const text = new TextDecoder().decode(event.data);
+    async createAndSendOffer(endpoint, token, systemInstructions) {
+        console.log('Creating offer with system instructions:', systemInstructions); // Debug log
         
+        const { peerConnection } = this.state.resources;
+        if (!peerConnection) {
+            throw new Error('Peer connection not initialized');
+        }
+        
+        try {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            const requestBody = systemInstructions ? {
+                sdp_offer: JSON.stringify(offer),
+                system_instruction: {
+                    'role': 'system',
+                    'parts': { 'text': systemInstructions }
+                }
+            } : {
+                sdp_offer: JSON.stringify(offer)
+            };
+
+            console.log('Request body being sent:', JSON.stringify(requestBody, null, 2)); // Debug log
+
+            const response = await fetch(`${endpoint}:exchangeWebRTCSessionOffer`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            console.log('Response status:', response.status); // Debug log
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Offer exchange error:', errorText); // Debug log
+                throw new Error(`Offer exchange failed: ${response.status} - ${errorText}`);
+            }
+
+            const responseData = await response.json();
+            console.log('Offer exchange response:', responseData); // Debug log
+            
+            await peerConnection.setRemoteDescription(JSON.parse(responseData.sdpAnswer));
+            
+        } catch (error) {
+            console.error('Complete offer error:', error); // Debug log
+            throw new Error(`Offer creation/exchange failed: ${error.message}`);
+        }
+    }
+
+    handleMessage(event) {
+        const text = new TextDecoder().decode(event.data);
+        log(`Received message: ${text}`, 'debug');
+    
         let messageType = 'system';
         let content = text;
     
@@ -446,11 +489,6 @@ class WebRTCManager {
             hour12: true
         });
     
-        if (!responseElement.style.height) {
-            responseElement.style.cssText = 'height: calc(100vh - 400px); overflow-y: auto; padding: 16px;';
-            responseElement.parentElement.style.cssText = 'display: flex; flex-direction: column; height: 100%;';
-        }
-    
         const wrapper = document.createElement('div');
         wrapper.style.cssText = `
             width: 100%;
@@ -461,7 +499,6 @@ class WebRTCManager {
             animation: fadeIn 0.3s ease-in-out;
         `;
     
-        // Add label with enhanced styling
         const label = document.createElement('div');
         label.style.cssText = `
             font-size: 12px;
@@ -474,57 +511,26 @@ class WebRTCManager {
         wrapper.appendChild(label);
     
         const bubble = document.createElement('div');
-        
-        if (messageType === 'user') {
-            bubble.style.cssText = `
-                background-color: #E3F2FD;
-                color: #1565C0;
-                padding: 12px 16px;
-                border-radius: 12px 12px 2px 12px;
-                max-width: 80%;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                width: fit-content;
-                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-                cursor: default;
-            `;
-        } else if (messageType === 'ai') {
-            bubble.style.cssText = `
-                background-color: #F3E5F5;
-                color: #6A1B9A;
-                padding: 12px 16px;
-                border-radius: 12px 12px 12px 2px;
-                max-width: 80%;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                width: fit-content;
-                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-                cursor: default;
-            `;
-        } else {
-            bubble.style.cssText = `
-                background-color: #E8F5E9;
-                color: #2E7D32;
-                padding: 12px 16px;
-                border-radius: 8px;
-                max-width: 80%;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                width: fit-content;
-                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-                cursor: default;
-            `;
-        }
-    
-        // Add hover effects
-        bubble.addEventListener('mouseover', () => {
-            bubble.style.transform = 'scale(1.01)';
-            bubble.style.boxShadow = '0 2px 4px rgba(0,0,0,0.15)';
-        });
-        bubble.addEventListener('mouseout', () => {
-            bubble.style.transform = 'scale(1)';
-            bubble.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
-        });
+        bubble.style.cssText = messageType === 'user' ? `
+            background-color: #E3F2FD;
+            color: #1565C0;
+            padding: 12px;
+            border-radius: 12px 12px 2px 12px;
+            max-width: 80%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            width: fit-content;
+        ` : `
+            background-color: #F3E5F5;
+            color: #6A1B9A;
+            padding: 12px;
+            border-radius: 12px 12px 12px 2px;
+            max-width: 80%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            width: fit-content;
+        `;
     
         const contentDiv = document.createElement('div');
-        contentDiv.style.cssText = 'margin: 4px 0; line-height: 1.4;';
+        contentDiv.style.cssText = 'margin: 4px 0;';
         contentDiv.textContent = content;
     
         const timeDiv = document.createElement('div');
@@ -533,33 +539,6 @@ class WebRTCManager {
     
         bubble.appendChild(contentDiv);
         bubble.appendChild(timeDiv);
-    
-        // Add typing indicator for AI messages
-        if (messageType === 'ai') {
-            const typingIndicator = document.createElement('div');
-            typingIndicator.style.cssText = `
-                display: flex;
-                gap: 4px;
-                margin-top: 8px;
-                opacity: 0.5;
-                height: 6px;
-            `;
-            
-            for (let i = 0; i < 3; i++) {
-                const dot = document.createElement('div');
-                dot.style.cssText = `
-                    width: 6px;
-                    height: 6px;
-                    background: #6A1B9A;
-                    border-radius: 50%;
-                    animation: bounce 1.4s infinite ${i * 0.2}s;
-                `;
-                typingIndicator.appendChild(dot);
-            }
-            
-            bubble.appendChild(typingIndicator);
-        }
-    
         wrapper.appendChild(bubble);
         responseElement.appendChild(wrapper);
         responseElement.scrollTop = responseElement.scrollHeight;
@@ -647,37 +626,6 @@ class WebRTCManager {
         });
     }
 
-    async createAndSendOffer(endpoint, token) {
-        const { peerConnection } = this.state.resources;
-        if (!peerConnection) {
-            throw new Error('Peer connection not initialized');
-        }
-        
-        try {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-
-            const response = await fetch(`${endpoint}:exchangeWebRTCSessionOffer`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ sdp_offer: JSON.stringify(offer) })
-            });
-
-            if (!response.ok) {
-                throw new Error(`Offer exchange failed: ${response.status}`);
-            }
-
-            const { sdpAnswer } = await response.json();
-            await peerConnection.setRemoteDescription(JSON.parse(sdpAnswer));
-            
-        } catch (error) {
-            throw new Error(`Offer creation/exchange failed: ${error.message}`);
-        }
-    }
-
     async handleConnectionError(error) {
         log(`Connection error: ${error.message}`, 'error');
         
@@ -688,7 +636,7 @@ class WebRTCManager {
             log(`Retrying connection in ${backoffTime}ms (attempt ${this.retryCount}/${this.maxRetries})`, 'warn');
             
             setTimeout(() => {
-                this.connect(this.projectId, this.token);
+                this.connect(this.projectId, this.token, this.systemInstructions);
             }, backoffTime);
         } else {
             updateStatus('error');
@@ -856,6 +804,9 @@ async function handleConnect() {
     try {
         const projectId = document.getElementById('projectId')?.value;
         const token = document.getElementById('token')?.value;
+        const systemInstructions = document.getElementById('systemInstructions')?.value;  // Make sure this ID matches your HTML
+
+        console.log('Connecting with system instructions:', systemInstructions); // Debug log
 
         if (!projectId || !token) {
             throw new Error('Project ID and Access Token are required');
@@ -873,11 +824,9 @@ async function handleConnect() {
             responseElement.innerHTML = '';
         }
         
-        updateConnectionStatus('connecting');
-        await webRTCManager.connect(projectId, token);
+        await webRTCManager.connect(projectId, token, systemInstructions);  // Make sure we're passing the system instructions here
     } catch (error) {
         log(`Connection failed: ${error.message}`, 'error');
-        updateConnectionStatus('disconnected');
         
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
