@@ -456,6 +456,17 @@ class WebRTCManager {
                         const responseData = await response.json();
                         await peerConnection.setRemoteDescription(JSON.parse(responseData.sdpAnswer));
                         log('Connected with system instructions');
+                        
+                        // Success message for working system instructions
+                        const sessionReady = document.getElementById('sessionReady');
+                        if (sessionReady) {
+                            sessionReady.innerHTML = `
+                                <i class="fas fa-check-circle"></i>
+                                Session ready! You can start speaking now.
+                            `;
+                            sessionReady.style.backgroundColor = '#e6f4ea';
+                            sessionReady.style.color = '#137333';
+                        }
                         return;
                     }
                     // If we get here, the first attempt failed
@@ -487,11 +498,11 @@ class WebRTCManager {
             await peerConnection.setRemoteDescription(JSON.parse(responseData.sdpAnswer));
             log('Connected without system instructions (not supported in this environment)', 'warn');
             
-            // Update UI to show system instructions aren't available
+            // Warning message for fallback without system instructions
             const sessionReady = document.getElementById('sessionReady');
             if (sessionReady) {
                 sessionReady.innerHTML = `
-                    <i class="fas fa-check-circle"></i>
+                    <i class="fas fa-exclamation-circle"></i>
                     Session ready! (System instructions not supported in this environment)
                 `;
                 sessionReady.style.backgroundColor = '#fef7e0';
