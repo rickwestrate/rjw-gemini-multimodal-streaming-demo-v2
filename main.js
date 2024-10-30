@@ -8,8 +8,8 @@ function createMessage(type, content, timestamp) {
     switch(type) {
         case 'user':
             div.style.cssText = `
-                background-color: #fff3e0;
-                color: #1565c0;
+                background-color: #E3F2FD;
+                color: #1565C0;
                 margin: 8px 0 8px auto;
                 padding: 12px;
                 border-radius: 12px 12px 2px 12px;
@@ -20,8 +20,8 @@ function createMessage(type, content, timestamp) {
             break;
         case 'ai':
             div.style.cssText = `
-                background-color: #f3e5f5;
-                color: #6a1b9a;
+                background-color: #F3E5F5;
+                color: #6A1B9A;
                 margin: 8px auto 8px 0;
                 padding: 12px;
                 border-radius: 12px 12px 12px 2px;
@@ -32,15 +32,15 @@ function createMessage(type, content, timestamp) {
             break;
         default:
             div.style.cssText = `
-                background-color: #e8f5e9;
-                color: #2e7d32;
+                background-color: #E8F5E9;
+                color: #2E7D32;
                 margin: 16px auto;
                 padding: 8px 12px;
                 border-radius: 8px;
                 max-width: 90%;
                 font-style: italic;
                 text-align: center;
-                border-left: 4px solid #4caf50;
+                border-left: 4px solid #4CAF50;
                 width: fit-content;
             `;
     }
@@ -398,26 +398,39 @@ class WebRTCManager {
     }
 
     handleMessage(event) {
+        // First, make sure we have the animation styles
+        if (!document.getElementById('chatAnimations')) {
+            const styleSheet = document.createElement("style");
+            styleSheet.id = 'chatAnimations';
+            styleSheet.textContent = `
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes bounce {
+                    0%, 80%, 100% { transform: translateY(0); }
+                    40% { transform: translateY(-4px); }
+                }
+            `;
+            document.head.appendChild(styleSheet);
+        }
+    
         const text = new TextDecoder().decode(event.data);
-        log(`Received message: ${text}`, 'debug');
-    
-        // Debug raw message
-        console.log('Raw message:', text);
-    
-        // Parse the prefix more carefully
+        
         let messageType = 'system';
         let content = text;
     
-        if (text.startsWith('Transcript:')) {
+        if (text.includes('Transcript:')) {
             messageType = 'user';
-            content = text.substring('Transcript:'.length).trim();
-        } else if (text.startsWith('Response:')) {
+            content = text.replace('Transcript:', '').trim();
+        } else if (text.includes('Response:')) {
             messageType = 'ai';
-            content = text.substring('Response:'.length).trim();
+            content = text.replace('Response:', '').trim();
         }
     
-        console.log('Identified type:', messageType); // Debug log
-        
+        // Remove any leading special characters
+        content = content.replace(/^[^a-zA-Z0-9\s]+/, '').trim();
+    
         const responseElement = document.getElementById('response');
         const timestamp = new Date().toLocaleTimeString([], {
             hour: 'numeric',
@@ -425,33 +438,121 @@ class WebRTCManager {
             hour12: true
         });
     
-        // Create wrapper and message elements
-        const wrapper = document.createElement('div');
-        wrapper.className = 'message-wrapper';
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message-bubble';
-        
-        // Add the appropriate class based on the exact message type
-        switch(messageType) {
-            case 'user':
-                messageDiv.className = 'message-bubble user-message';
-                break;
-            case 'ai':
-                messageDiv.className = 'message-bubble ai-message';
-                break;
-            default:
-                messageDiv.className = 'message-bubble system-message';
+        if (!responseElement.style.height) {
+            responseElement.style.cssText = 'height: calc(100vh - 400px); overflow-y: auto; padding: 16px;';
+            responseElement.parentElement.style.cssText = 'display: flex; flex-direction: column; height: 100%;';
         }
     
-        // Add content and timestamp
-        messageDiv.innerHTML = `
-            <div class="message-content">${content}</div>
-            <div class="message-time">${timestamp}</div>
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = `
+            width: 100%;
+            margin: 8px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: ${messageType === 'user' ? 'flex-end' : 'flex-start'};
+            animation: fadeIn 0.3s ease-in-out;
         `;
     
-        // Append messages
-        wrapper.appendChild(messageDiv);
+        // Add label with enhanced styling
+        const label = document.createElement('div');
+        label.style.cssText = `
+            font-size: 12px;
+            margin-bottom: 4px;
+            opacity: 0.7;
+            font-weight: 500;
+            ${messageType === 'user' ? 'color: #1565C0;' : 'color: #6A1B9A;'}
+        `;
+        label.textContent = messageType === 'user' ? 'User' : 'Gemini';
+        wrapper.appendChild(label);
+    
+        const bubble = document.createElement('div');
+        
+        if (messageType === 'user') {
+            bubble.style.cssText = `
+                background-color: #E3F2FD;
+                color: #1565C0;
+                padding: 12px 16px;
+                border-radius: 12px 12px 2px 12px;
+                max-width: 80%;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                width: fit-content;
+                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+                cursor: default;
+            `;
+        } else if (messageType === 'ai') {
+            bubble.style.cssText = `
+                background-color: #F3E5F5;
+                color: #6A1B9A;
+                padding: 12px 16px;
+                border-radius: 12px 12px 12px 2px;
+                max-width: 80%;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                width: fit-content;
+                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+                cursor: default;
+            `;
+        } else {
+            bubble.style.cssText = `
+                background-color: #E8F5E9;
+                color: #2E7D32;
+                padding: 12px 16px;
+                border-radius: 8px;
+                max-width: 80%;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                width: fit-content;
+                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+                cursor: default;
+            `;
+        }
+    
+        // Add hover effects
+        bubble.addEventListener('mouseover', () => {
+            bubble.style.transform = 'scale(1.01)';
+            bubble.style.boxShadow = '0 2px 4px rgba(0,0,0,0.15)';
+        });
+        bubble.addEventListener('mouseout', () => {
+            bubble.style.transform = 'scale(1)';
+            bubble.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+        });
+    
+        const contentDiv = document.createElement('div');
+        contentDiv.style.cssText = 'margin: 4px 0; line-height: 1.4;';
+        contentDiv.textContent = content;
+    
+        const timeDiv = document.createElement('div');
+        timeDiv.style.cssText = 'font-size: 11px; color: #5f6368; text-align: right; margin-top: 4px;';
+        timeDiv.textContent = timestamp;
+    
+        bubble.appendChild(contentDiv);
+        bubble.appendChild(timeDiv);
+    
+        // Add typing indicator for AI messages
+        if (messageType === 'ai') {
+            const typingIndicator = document.createElement('div');
+            typingIndicator.style.cssText = `
+                display: flex;
+                gap: 4px;
+                margin-top: 8px;
+                opacity: 0.5;
+                height: 6px;
+            `;
+            
+            for (let i = 0; i < 3; i++) {
+                const dot = document.createElement('div');
+                dot.style.cssText = `
+                    width: 6px;
+                    height: 6px;
+                    background: #6A1B9A;
+                    border-radius: 50%;
+                    animation: bounce 1.4s infinite ${i * 0.2}s;
+                `;
+                typingIndicator.appendChild(dot);
+            }
+            
+            bubble.appendChild(typingIndicator);
+        }
+    
+        wrapper.appendChild(bubble);
         responseElement.appendChild(wrapper);
         responseElement.scrollTop = responseElement.scrollHeight;
     }
@@ -669,6 +770,7 @@ async function initializeApp() {
         const updateOverlayBtn = document.getElementById('updateOverlay');
         const fontSizeSlider = document.getElementById('fontSize');
         const transparencySlider = document.getElementById('overlayTransparency');
+        const responseElement = document.getElementById('response');
 
         if (connectBtn) {
             connectBtn.addEventListener('click', handleConnect);
@@ -682,6 +784,11 @@ async function initializeApp() {
 
         if (updateOverlayBtn) {
             updateOverlayBtn.addEventListener('click', handleOverlayUpdate);
+        }
+
+        if (responseElement) {
+            responseElement.style.cssText = 'max-height: calc(100vh - 300px); overflow-y: auto; padding: 16px;';
+            responseElement.parentElement.style.cssText = 'height: 100%; display: flex; flex-direction: column;';
         }
 
         // Set up UI value displays
