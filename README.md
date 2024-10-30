@@ -17,6 +17,9 @@ Before running the application, you need to obtain an access token by typing `gc
 *   **Video Processing:** The `VideoProcessor` class handles adding the text overlay to the video stream.
 *   **Connection Management:** The `WebRTCManager` class is responsible for establishing, maintaining, and closing the WebRTC connection.
 
+
+![Interface Screenshot](images/app-screenshot.png)
+
 **How it Works**
 
 1.  **Initialization**
