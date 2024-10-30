@@ -391,8 +391,16 @@ class WebRTCManager {
     }
 
     setupDataChannel(dataChannel) {
-        dataChannel.onopen = () => log('Data channel opened');
-        dataChannel.onclose = () => log('Data channel closed');
+        dataChannel.onopen = () => {
+            log('Data channel opened');
+            dataChannelOpen = true;
+            updateConnectionStatus('connected');
+        };
+        dataChannel.onclose = () => {
+            log('Data channel closed');
+            dataChannelOpen = false;
+            updateConnectionStatus('disconnected');
+        };
         dataChannel.onmessage = this.handleMessage.bind(this);
         dataChannel.onerror = (error) => log(`Data channel error: ${error.message}`, 'error');
     }
@@ -732,6 +740,22 @@ class WebRTCManager {
 // Main Application Logic
 // ============================================================================
 let state, videoProcessor, webRTCManager;
+let dataChannelOpen = false;
+
+function updateConnectionStatus(status) {
+    const statusEl = document.getElementById('connectionStatus');
+    const statusTextEl = statusEl.querySelector('.status-text');
+    statusEl.className = `connection-status status-${status}`;
+    statusTextEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    
+    // Show ready indicator when both connected and data channel is open
+    const sessionReady = document.getElementById('sessionReady');
+    if (status === 'connected' && dataChannelOpen) {
+        sessionReady.style.display = 'flex';
+    } else {
+        sessionReady.style.display = 'none';
+    }
+}
 
 function log(message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
@@ -753,6 +777,7 @@ function updateStatus(message) {
         statusElement.textContent = `Status: ${message}`;
     }
     log(`Status updated: ${message}`, 'status');
+    updateConnectionStatus(message);
 }
 
 async function initializeApp() {
@@ -811,6 +836,15 @@ async function initializeApp() {
             });
         }
 
+        // Initialize color picker previews
+        document.getElementById('overlayColor').addEventListener('input', (e) => {
+            document.getElementById('textColorPreview').style.backgroundColor = e.target.value;
+        });
+        
+        document.getElementById('overlayBgColor').addEventListener('input', (e) => {
+            document.getElementById('bgColorPreview').style.backgroundColor = e.target.value;
+        });
+
         log('Application initialized successfully');
     } catch (error) {
         log(`Initialization error: ${error.message}`, 'error');
@@ -839,9 +873,11 @@ async function handleConnect() {
             responseElement.innerHTML = '';
         }
         
+        updateConnectionStatus('connecting');
         await webRTCManager.connect(projectId, token);
     } catch (error) {
         log(`Connection failed: ${error.message}`, 'error');
+        updateConnectionStatus('disconnected');
         
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
@@ -861,6 +897,7 @@ async function handleDisconnect() {
         }
 
         await webRTCManager.disconnect();
+        updateConnectionStatus('disconnected');
 
         const connectBtn = document.getElementById('connectBtn');
         if (connectBtn) {
