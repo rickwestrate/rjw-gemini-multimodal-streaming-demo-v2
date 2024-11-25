@@ -65,7 +65,12 @@ class GeminiStreamingState {
     reset() {
         this.connectionState = 'disconnected';
         this.overlayConfig = {
-            text: '',
+            text: `**Current Season Task List:**
+    1. *Tell a seasonally-appropriate joke*
+    2. *Share a fun fact about this season*
+    3. ***Secret mission:*** Create a pun about the weather
+    4. *Suggest a fun seasonal activity*
+    Current Status: Awaiting seasonal cheer!`,
             color: '#FFFFFF',
             bgColor: '#000000',
             transparency: 1,
@@ -112,6 +117,13 @@ class VideoProcessor {
     constructor(state) {
         this.state = state;
         this.textCache = new Map();
+        this.baseFont = 'Arial';
+        this.fontStyles = {
+            normal: '',
+            bold: 'bold ',
+            italic: 'italic ',
+            bolditalic: 'bold italic '
+        };
     }
 
     async initializeProcessing(videoTrack) {
@@ -192,79 +204,118 @@ class VideoProcessor {
         }
     }
 
+    processStyledText(text) {
+        // First convert markdown to our style syntax
+        let processedText = text
+            .replace(/\*\*\*([^*]+)\*\*\*/g, '{bolditalic}$1{normal}')
+            .replace(/\*\*([^*]+)\*\*/g, '{bold}$1{normal}')
+            .replace(/\*([^*]+)\*/g, '{italic}$1{normal}')
+            .replace(/_([^_]+)_/g, '{italic}$1{normal}');
+
+        // Ensure all text has a style
+        if (!processedText.startsWith('{')) {
+            processedText = '{normal}' + processedText;
+        }
+
+        const segments = [];
+        const pattern = /\{([^}]+)\}([^{]*)/g;
+        let match;
+
+        while ((match = pattern.exec(processedText)) !== null) {
+            segments.push({
+                style: match[1],
+                text: match[2]
+            });
+        }
+
+        return segments;
+    }
+
     async drawOverlay(ctx, width, height) {
         const { text, color, bgColor, transparency, position, fontSize } = this.state.overlayConfig;
         
         try {
-            const lines = await this.getWrappedText(ctx, text, width - 20, fontSize);
+            ctx.textBaseline = 'top';
+            const maxWidth = Math.min(width * 0.8, 600);
+            const padding = Math.max(fontSize * 0.5, 12);
             
-            const boxPadding = 10;
-            const lineHeight = fontSize * 1.2;
-            const boxWidth = width - 2 * boxPadding;
-            const boxHeight = lines.length * lineHeight + 2 * boxPadding;
+            // Process each line separately
+            const lines = text.split('\n');
+            const processedLines = lines.map(line => this.processStyledText(line));
+            
+            // Calculate total height and maximum width
+            let totalHeight = 0;
+            let maxLineWidth = 0;
 
-            const [x, y] = this.calculateOverlayPosition(position, width, height, boxWidth, boxHeight);
+            // Measure each line
+            for (const line of processedLines) {
+                let lineWidth = 0;
+                for (const segment of line) {
+                    ctx.font = `${this.fontStyles[segment.style]}${fontSize}px ${this.baseFont}`;
+                    lineWidth += ctx.measureText(segment.text).width;
+                }
+                maxLineWidth = Math.max(maxLineWidth, lineWidth);
+                totalHeight += fontSize * 1.2;
+            }
 
-            // Draw background with transparency
+            // Add padding
+            const boxWidth = Math.min(maxLineWidth + (padding * 2), maxWidth);
+            const boxHeight = totalHeight + (padding * 2);
+
+            // Calculate position
+            let [x, y] = this.calculateOverlayPosition(position, width, height, boxWidth, boxHeight);
+
+            // Draw background
             ctx.globalAlpha = transparency;
             ctx.fillStyle = bgColor;
-            ctx.fillRect(x, y, boxWidth, boxHeight);
+            
+            // Draw rounded rectangle
+            const radius = Math.min(8, boxHeight / 4);
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + boxWidth - radius, y);
+            ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + radius);
+            ctx.lineTo(x + boxWidth, y + boxHeight - radius);
+            ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - radius, y + boxHeight);
+            ctx.lineTo(x + radius, y + boxHeight);
+            ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
 
-            // Draw text at full opacity
+            // Draw text
             ctx.globalAlpha = 1;
             ctx.fillStyle = color;
-            ctx.font = `${fontSize}px Arial`;
-            ctx.textBaseline = 'top';
-
-            lines.forEach((line, i) => {
-                ctx.fillText(line, x + boxPadding, y + boxPadding + (lineHeight * i));
-            });
-        } catch (error) {
-            log(`Overlay drawing error: ${error.message}`, 'error');
-        }
-    }
-
-    async getWrappedText(ctx, text, maxWidth, fontSize) {
-        const cacheKey = `${text}-${maxWidth}-${fontSize}`;
-        
-        if (!this.textCache.has(cacheKey)) {
-            const words = text.split(' ');
-            const lines = [];
-            let currentLine = words[0];
-
-            for (let i = 1; i < words.length; i++) {
-                const word = words[i];
-                const width = ctx.measureText(currentLine + ' ' + word).width;
-                
-                if (width < maxWidth) {
-                    currentLine += ' ' + word;
-                } else {
-                    lines.push(currentLine);
-                    currentLine = word;
-                }
-            }
             
-            lines.push(currentLine);
-            this.textCache.set(cacheKey, lines);
-
-            // Limit cache size
-            if (this.textCache.size > 100) {
-                const oldestKey = this.textCache.keys().next().value;
-                this.textCache.delete(oldestKey);
+            let currentY = y + padding;
+            
+            // Draw each line
+            for (const line of processedLines) {
+                let currentX = x + padding;
+                
+                // Draw each styled segment in the line
+                for (const segment of line) {
+                    ctx.font = `${this.fontStyles[segment.style]}${fontSize}px ${this.baseFont}`;
+                    ctx.fillText(segment.text, currentX, currentY);
+                    currentX += ctx.measureText(segment.text).width;
+                }
+                
+                currentY += fontSize * 1.2;
             }
+        } catch (error) {
+            console.error('Error drawing overlay:', error);
         }
-
-        return this.textCache.get(cacheKey);
     }
 
     calculateOverlayPosition(position, width, height, boxWidth, boxHeight) {
-        const padding = 10;
+        const padding = 16;
         switch (position) {
-            case 'top-right': 
+            case 'top-right':
                 return [width - boxWidth - padding, padding];
-            case 'bottom-left': 
+            case 'bottom-left':
                 return [padding, height - boxHeight - padding];
-            case 'bottom-right': 
+            case 'bottom-right':
                 return [width - boxWidth - padding, height - boxHeight - padding];
             default: // top-left
                 return [padding, padding];
