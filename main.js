@@ -1,4 +1,39 @@
 // ============================================================================
+// Camera Enumeration and Selection
+// ============================================================================
+async function populateCameraList() {
+    try {
+        const cameraSelect = document.getElementById('cameraSelect');
+        if (!cameraSelect) return;
+
+        // Clear existing options
+        while (cameraSelect.firstChild) {
+            cameraSelect.removeChild(cameraSelect.firstChild);
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+        if (videoDevices.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No camera found';
+            cameraSelect.appendChild(option);
+            return;
+        }
+
+        videoDevices.forEach((device, index) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.text = device.label || `Camera ${index + 1}`;
+            cameraSelect.appendChild(option);
+        });
+    } catch (error) {
+        log(`Error enumerating cameras: ${error.message}`, 'error');
+    }
+}
+
+// ============================================================================
 // Chat Components
 // ============================================================================
 function createMessage(type, content, timestamp) {
@@ -110,6 +145,7 @@ class GeminiStreamingState {
         );
     }
 }
+
 // ============================================================================
 // Video Processing
 // ============================================================================
@@ -247,7 +283,6 @@ class VideoProcessor {
             let totalHeight = 0;
             let maxLineWidth = 0;
 
-            // Measure each line
             for (const line of processedLines) {
                 let lineWidth = 0;
                 for (const segment of line) {
@@ -258,14 +293,11 @@ class VideoProcessor {
                 totalHeight += fontSize * 1.2;
             }
 
-            // Add padding
             const boxWidth = Math.min(maxLineWidth + (padding * 2), maxWidth);
             const boxHeight = totalHeight + (padding * 2);
 
-            // Calculate position
             let [x, y] = this.calculateOverlayPosition(position, width, height, boxWidth, boxHeight);
 
-            // Draw background
             ctx.globalAlpha = transparency;
             ctx.fillStyle = bgColor;
             
@@ -284,17 +316,14 @@ class VideoProcessor {
             ctx.closePath();
             ctx.fill();
 
-            // Draw text
             ctx.globalAlpha = 1;
             ctx.fillStyle = color;
             
             let currentY = y + padding;
-            
-            // Draw each line
+
             for (const line of processedLines) {
                 let currentX = x + padding;
                 
-                // Draw each styled segment in the line
                 for (const segment of line) {
                     ctx.font = `${this.fontStyles[segment.style]}${fontSize}px ${this.baseFont}`;
                     ctx.fillText(segment.text, currentX, currentY);
@@ -317,7 +346,7 @@ class VideoProcessor {
                 return [padding, height - boxHeight - padding];
             case 'bottom-right':
                 return [width - boxWidth - padding, height - boxHeight - padding];
-            default: // top-left
+            default:
                 return [padding, padding];
         }
     }
@@ -344,6 +373,7 @@ class VideoProcessor {
         }
     }
 }
+
 // ============================================================================
 // WebRTC Connection Management
 // ============================================================================
@@ -508,7 +538,6 @@ class WebRTCManager {
                         await peerConnection.setRemoteDescription(JSON.parse(responseData.sdpAnswer));
                         log('Connected with system instructions');
                         
-                        // Success message for working system instructions
                         const sessionReady = document.getElementById('sessionReady');
                         if (sessionReady) {
                             sessionReady.innerHTML = `
@@ -520,7 +549,6 @@ class WebRTCManager {
                         }
                         return;
                     }
-                    // If we get here, the first attempt failed
                     log('System instructions not supported, retrying without...', 'warn');
                 } catch (error) {
                     console.log('Failed with system instructions, retrying without:', error);
@@ -549,7 +577,6 @@ class WebRTCManager {
             await peerConnection.setRemoteDescription(JSON.parse(responseData.sdpAnswer));
             log('Connected without system instructions (not supported in this environment)', 'warn');
             
-            // Warning message for fallback without system instructions
             const sessionReady = document.getElementById('sessionReady');
             if (sessionReady) {
                 sessionReady.innerHTML = `
@@ -581,7 +608,6 @@ class WebRTCManager {
             content = text.replace('Response:', '').trim();
         }
     
-        // Remove any leading special characters
         content = content.replace(/^[^a-zA-Z0-9\s]+/, '').trim();
     
         const responseElement = document.getElementById('response');
@@ -672,32 +698,36 @@ class WebRTCManager {
 
     async setupMediaStream() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
+            const cameraSelect = document.getElementById('cameraSelect');
+            const selectedCameraDeviceId = cameraSelect ? cameraSelect.value : undefined;
+    
+            const constraints = {
+                video: {
                     width: { ideal: 1280 },
                     height: { ideal: 720 },
                     frameRate: { ideal: 30 }
-                }, 
-                audio: true 
-            });
-
+                },
+                audio: true
+            };
+    
+            if (selectedCameraDeviceId) {
+                constraints.video.deviceId = { exact: selectedCameraDeviceId };
+            }
+    
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             const videoTrack = stream.getVideoTracks()[0];
             const processedTrack = await this.videoProcessor.initializeProcessing(videoTrack);
-            
-            const processedStream = new MediaStream([
-                processedTrack,
-                ...stream.getAudioTracks()
-            ]);
-
+    
+            const processedStream = new MediaStream([processedTrack, ...stream.getAudioTracks()]);
             this.setupLocalVideo(processedStream);
             this.addTracksToConnection(processedStream);
-            
+    
             this.state.resources.localStream = stream;
-            
         } catch (error) {
             throw new Error(`Media setup failed: ${error.message}`);
         }
     }
+    
 
     setupLocalVideo(stream) {
         const localVideo = document.getElementById('localVideo');
@@ -786,6 +816,7 @@ class WebRTCManager {
         }
     }
 }
+
 // ============================================================================
 // Main Application Logic
 // ============================================================================
@@ -906,7 +937,7 @@ async function handleConnect() {
     try {
         const projectId = document.getElementById('projectId')?.value;
         const token = document.getElementById('token')?.value;
-        const systemInstructions = document.getElementById('systemInstructions')?.value;  // Make sure this ID matches your HTML
+        const systemInstructions = document.getElementById('systemInstructions')?.value;
 
         console.log('Connecting with system instructions:', systemInstructions); // Debug log
 
@@ -926,7 +957,7 @@ async function handleConnect() {
             responseElement.innerHTML = '';
         }
         
-        await webRTCManager.connect(projectId, token, systemInstructions);  // Make sure we're passing the system instructions here
+        await webRTCManager.connect(projectId, token, systemInstructions);
     } catch (error) {
         log(`Connection failed: ${error.message}`, 'error');
         
@@ -1006,7 +1037,6 @@ function startMetricsCollection() {
                 }
             });
 
-            // Update metrics display
             const elements = {
                 bytesReceived: document.getElementById('bytesReceived'),
                 bytesSent: document.getElementById('bytesSent'),
@@ -1027,7 +1057,6 @@ function startMetricsCollection() {
         }
     }, 1000);
 
-    // Store interval ID for cleanup
     state.metricsInterval = metricsInterval;
 }
 
@@ -1039,8 +1068,22 @@ function formatBytes(bytes) {
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', initializeApp);
+// Single DOMContentLoaded event
+document.addEventListener('DOMContentLoaded', async () => {
+    await populateCameraList();
+    await initializeApp(); // webRTCManager is initialized here
+
+    const cameraSelect = document.getElementById('cameraSelect');
+    if (cameraSelect) {
+        cameraSelect.addEventListener('change', async () => {
+            if (state && state.resources && state.resources.localStream) {
+                state.resources.localStream.getTracks().forEach(track => track.stop());
+            }
+            // Now webRTCManager is defined, so this will not fail
+            await webRTCManager.setupMediaStream();
+        });
+    }
+});
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', async () => {

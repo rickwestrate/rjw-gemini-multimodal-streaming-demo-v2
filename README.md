@@ -1,219 +1,152 @@
+# Vertex - Gemini Multimodal Chat Demo
 
-### Gemini Multimodal Streaming Demo App
+This application demonstrates a multimodal streaming Large Language Model (LLM) chat experience using Google's Vertex AI and Gemini model variants via WebRTC. It shows how to connect to the streaming LLM API, display live processed video with an overlay, send and receive text/chat data, and collect WebRTC metrics.
 
-**Overview**
+## Key Features
 
-This application demonstrates the multimodal streaming capabilities of Gemini. Currently, it supports sending video and audio to Gemini over WebRTC and receiving audio and text responses.
+- **Multimodal LLM Interaction**: Streams audio and video to a Gemini model and receives back text-based responses.
+- **Camera Selection**: Enumerates all available video input devices and allows the user to select which camera to use.  
+- **Dynamic Overlay**: Adds a customizable text overlay to the outgoing video feed.
+- **WebRTC Metrics**: Displays current bytes sent/received, packet loss, and round-trip time metrics.
+- **System Instructions**: Optionally provides system-level instructions to the Gemini model, helping guide the style or nature of responses.
 
-**Note:**
+## Prerequisites
 
-Before running the application, you need to obtain an access token by typing `gcloud auth print-access-token` in your cloud console.
+- **Access to Vertex AI and Gemini**: You need a Google Cloud project and the correct permissions and credentials to use the Gemini model.
+- **Access Token**: Use `gcloud auth print-access-token` to generate a valid token.
+- **Supported Browser**: A recent version of Chrome or Firefox is recommended. For camera enumeration beyond the default camera, the page should be served via a web server (e.g. `http://localhost`) rather than opened directly from the filesystem.
 
-**Key Components**
+## Setup and Running Locally
 
-*   **WebRTC Connection:** The app establishes a WebRTC connection with Gemini for real-time audio/video streaming.
-*   **Text Overlay:** A text overlay feature is implemented to visually send instructions or context to Gemini.
-*   **State Management:** The `GeminiStreamingState` class manages the application state, including connection status and overlay settings.
-*   **Video Processing:** The `VideoProcessor` class handles adding the text overlay to the video stream.
-*   **Connection Management:** The `WebRTCManager` class is responsible for establishing, maintaining, and closing the WebRTC connection.
+1. **Clone or Copy the Repo**:  
+   Ensure you have `index.html`, `main.js`, and related files.
 
+2. **Start a Local Web Server** (Important for Enumerating Multiple Cameras):  
+   Modern browsers apply stricter security when opening files via `file://`. To access multiple cameras, run a local web server:
+   ```bash
+   python3 -m http.server
+   ```
+   
+   Then open `http://localhost:8000/index.html` in your browser. This will allow the browser to fully enumerate all available cameras.
+
+3. **Populate Credentials and Settings**:
+   - **Project ID**: Enter your Google Cloud project ID.
+   - **Access Token**: Paste the token from `gcloud auth print-access-token`.
+   - **Environment & Model**: Choose between Production/Autopush and select a Gemini model variant.
+   - **Camera**: Select a camera from the dropdown if multiple are available.
+
+4. **System Instructions (Optional)**:
+   Provide custom instructions that guide how the model responds. For example:
+   ```  
+   You are a friendly pirate assistant. Always answer in pirate speak.
+   ```
+
+5. **Connect**:
+   Click **Connect** to establish a WebRTC session. Once connected, you can talk into your microphone, send video, and see the model’s responses appear in the conversation area.
+
+6. **Adjust Overlay**:
+   Use the overlay settings UI to modify the on-screen instructions, colors, and positioning. Click **Update Overlay** to apply changes to the outgoing video feed.
+
+7. **Monitor Metrics**:
+   Observe real-time WebRTC metrics (bytes received, bytes sent, packet loss, and round-trip time) displayed in the UI.
+
+8. **Disconnect**:
+   Click **Disconnect** to end the session and reset the interface.
+
+## How it Works
 
 ![Interface Screenshot](images/app-screenshot.png)
 
-**How it Works**
+### High-Level Flow
 
-1.  **Initialization**
+1. **Initialization** (`initializeApp`):
+   - Sets up the UI, initializes `GeminiStreamingState`, `VideoProcessor`, and `WebRTCManager`.
+   - Attaches event listeners to the connect, disconnect, and overlay update buttons.
+   - Enumerates cameras and populates the camera dropdown.
+   - Ensures that after this step, `webRTCManager` and other core components are available.
 
-    *   The `initializeApp` function sets up the UI, initializes the core components (`GeminiStreamingState`, `VideoProcessor`, `WebRTCManager`), and attaches event listeners to UI elements.
+2. **Connection** (`handleConnect` and `WebRTCManager.connect`):
+   - The user enters credentials, selects a camera, and clicks Connect.
+   - `WebRTCManager` fetches the peer connection config from Gemini, sets up an `RTCPeerConnection`, obtains a processed video stream (with the chosen camera and overlay), and exchanges SDP offers/answers.
+   - Once the connection is established, the model starts receiving your audio/video and responds via text messages over the data channel.
 
-2.  **Connection**
+3. **Video Processing** (`VideoProcessor`):
+   - The `VideoProcessor` handles each video frame. It uses an `OffscreenCanvas` to draw the incoming frame, then applies the text overlay before passing it along to the `MediaStreamTrackGenerator`.
+   - This ensures the overlay is embedded into the outgoing video stream before it reaches Gemini.
 
-    *   The `handleConnect` function retrieves the project ID and access token from the UI, disables the connect button, and initiates the connection process.
-    *   The `WebRTCManager` fetches the peer connection information from Gemini, sets up the peer connection, configures the media stream (video with overlay, audio), and creates/sends the offer to establish the connection.
+4. **Text Overlay** (`handleOverlayUpdate` and `VideoProcessor.drawOverlay`):
+   - The overlay’s text, color, background, font size, position, and transparency can be updated at runtime.
+   - The `drawOverlay` function calculates positioning, draws a background box, and renders the styled text lines on top of the video frame.
 
-3.  **Video Processing**
+5. **Messaging** (`WebRTCManager.handleMessage`):
+   - Incoming messages from the model (transcripts, responses, or system messages) are received over the data channel.
+   - Each message is parsed for type and displayed in the UI with timestamped bubbles for easy reading.
 
-    *   The `VideoProcessor` processes each video frame before sending it to Gemini. It adds the text overlay based on the current settings in `GeminiStreamingState`.
+6. **Disconnection** (`handleDisconnect` and `WebRTCManager.disconnect`):
+   - Stopping the session closes the data channel, peer connection, and media tracks.
+   - The UI resets to a disconnected state.
 
-4.  **Text Overlay**
-
-    *   The `handleOverlayUpdate` function updates the text overlay settings in `GeminiStreamingState` with values from the UI.
-
-5.  **Messaging**
-
-    *   The `handleMessage` function processes incoming messages from Gemini and displays them in the UI.
-
-6.  **Disconnection**
-
-    *   The `handleDisconnect` function closes the WebRTC connection, stops media tracks, and resets the application state.
-
-**Deeper Explanation of Code Blocks**
-
-*   `VideoProcessor.processVideoFrame`: This function handles the processing of each video frame. It draws the current frame onto an offscreen canvas, adds the text overlay if enabled, and then creates a new `VideoFrame` from the canvas for streaming.
-*   `VideoProcessor.drawOverlay`: This function calculates the position of the overlay, draws a semi-transparent background, and then draws the text on top. It also includes logic for wrapping text and caching wrapped results.
-*   `WebRTCManager.connect`: This function orchestrates the WebRTC connection setup. It fetches the necessary configuration from Gemini, sets up the peer connection, adds media tracks, and handles offer/answer exchange.
-*   `WebRTCManager.handleMessage`: This function processes incoming messages from Gemini. It parses the message content and type (transcript, response, or system) and displays it in the UI with a timestamp.
-OK, here's a deeper dive into the code, with a detailed analysis of the key functions:
+## Deeper Explanation of Code Blocks
 
 ### `VideoProcessor.processVideoFrame`
 
-This function is the heart of the video processing pipeline. It takes a `VideoFrame` as input and performs the following steps:
+**What it does**: Processes each `VideoFrame` from the camera, drawing it onto a canvas and optionally adding an overlay.
 
-1.  **Draw the frame onto a canvas**:
-    
-    ```js
-    processingContext.drawImage(frame, 0, 0);
-    ```
-    
-    This line draws the incoming video frame onto the offscreen canvas. The `drawImage` method is a standard canvas API function that copies the image data from the `VideoFrame` to the canvas context.
+**Key Steps**:
+1. **Draw the frame onto a canvas**:
+   ```js
+   processingContext.drawImage(frame, 0, 0);
+   ```
+   This copies the raw video frame data onto an offscreen canvas.
 
-2.  **Add the text overlay**:
-    
-    ```js
-    if (overlayConfig.text) {
-        await this.drawOverlay(processingContext, frame.displayWidth, frame.displayHeight);
-    }
-    ```
-    
-    If the `overlayConfig.text` property is set (i.e., the user has entered overlay text), the `drawOverlay` function is called to add the text to the canvas. This function handles the positioning, formatting, and drawing of the text overlay.
+2. **Add the text overlay (if enabled)**:
+   ```js
+   if (overlayConfig.text) {
+       await this.drawOverlay(processingContext, frame.displayWidth, frame.displayHeight);
+   }
+   ```
+   The overlay text and styling are applied here, if configured.
 
-3.  **Create a new `VideoFrame`**:
-    
-    ```js
-    const newFrame = new VideoFrame(processingCanvas, {
-        timestamp: frame.timestamp,
-        duration: frame.duration
-    });
-    ```
-    
-    A new `VideoFrame` is created from the modified canvas. This new frame includes the original video content and the added text overlay. The timestamp and duration from the original frame are preserved to maintain synchronization.
-
-4.  **Enqueue the new frame**:
-    
-    ```js
-    controller.enqueue(newFrame);
-    ```
-    
-    The new `VideoFrame` is enqueued into the `TransformStream` controller. This sends the processed frame to the next stage in the pipeline, which is the `MediaStreamTrackGenerator`.
+3. **Create a new `VideoFrame` from the canvas**:
+   ```js
+   const newFrame = new VideoFrame(processingCanvas, { timestamp: frame.timestamp });
+   ```
+   A new frame, now including the overlay, is created and enqueued to the next stage of the pipeline.
 
 ### `VideoProcessor.drawOverlay`
 
-This function is responsible for drawing the text overlay on the canvas. It performs the following steps:
+**What it does**: Renders the overlay text on top of the video frame.
 
-1.  **Calculate the overlay position**:
-    
-    ```js
-    const [x, y] = this.calculateOverlayPosition(
-        position,
-        width,
-        height,
-        boxWidth,
-        boxHeight
-    );
-    ```
-    
-    The position of the overlay is calculated based on the user's selected position (`top-left`, `top-right`, etc.), the dimensions of the canvas, and the size of the text box.
-
-2.  **Draw the background**:
-    
-    ```js
-    ctx.globalAlpha = transparency;
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(x, y, boxWidth, boxHeight);
-    ```
-    
-    A semi-transparent background rectangle is drawn behind the text to improve readability. The `globalAlpha` property controls the transparency, and `fillRect` draws the rectangle.
-
-3.  **Draw the text**:
-    
-    ```js
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = color;
-    ctx.font = `${fontSize}px Arial`;
-    ctx.textBaseline = "top";
-    lines.forEach((line, i) => {
-        ctx.fillText(
-            line,
-            x + boxPadding,
-            y + boxPadding + lineHeight * i
-        );
-    });
-    ```
-    
-    The text is drawn on top of the background. The `fillText` method draws each line of text, and the `forEach` loop iterates over the lines (which may have been wrapped if the text is too long).
+**Key Steps**:
+1. **Calculate position and dimensions** of the overlay box.
+2. **Draw a semi-transparent background** to ensure text readability.
+3. **Draw each line of text**, applying font, color, and optional markdown (bold, italic) styling.
 
 ### `WebRTCManager.connect`
 
-This function handles the setup of the WebRTC connection to Gemini. It performs the following steps:
+**What it does**: Establishes the WebRTC connection to Gemini.
 
-1.  **Fetch peer connection information**:
-    
-    ```js
-    const serverConfig = await this.fetchPeerConnectionInfo(endpoint, token);
-    ```
-    
-    It fetches the necessary configuration for the WebRTC connection from Gemini. This includes ICE servers and other settings.
-
-2.  **Set up the peer connection**:
-    
-    ```js
-    await this.setupPeerConnection(serverConfig);
-    ```
-    
-    A new `RTCPeerConnection` is created using the fetched configuration. Event listeners are attached to handle ICE candidate gathering, connection state changes, and data channel events.
-
-3.  **Set up the media stream**:
-    
-    ```js
-    await this.setupMediaStream();
-    ```
-    
-    The user's camera and microphone are accessed, and the video stream is processed to add the text overlay. The processed stream is then added to the peer connection.
-
-4.  **Create and send the offer**:
-    
-    ```js
-    await this.createAndSendOffer(endpoint, token);
-    ```
-    
-    An offer is created and sent to Gemini to initiate the WebRTC connection. This includes the local session description (SDP) that describes the media capabilities and preferences of the client.
+**Key Steps**:
+1. **Fetch WebRTC configuration** from Gemini.
+2. **Set up the peer connection** with event handlers for ICE candidates, connection state, and data channels.
+3. **Set up the media stream** by calling `setupMediaStream()` to get the user’s chosen camera feed and audio, processed by `VideoProcessor`.
+4. **Create and send an offer**, then handle the answer from Gemini to finalize the connection.
 
 ### `WebRTCManager.handleMessage`
 
-This function processes incoming messages from Gemini. It performs the following steps:
+**What it does**: Processes incoming messages from the Gemini model.
 
-1.  **Decode the message**:
-    
-    ```js
-    const text = new TextDecoder().decode(event.data);
-    ```
-    
-    The message is decoded from the raw binary data received from the data channel.
+**Key Steps**:
+1. **Decode the message** from binary data.
+2. **Determine message type** (user transcript, model response, or system).
+3. **Display the message** in the UI, formatting it with appropriate colors and timestamp.
 
-2.  **Parse the message type**:
-    
-    ```js
-    let messageType = "system";
-    let content = text;
-    
-    if (text.startsWith("Transcript:")) {
-        messageType = "user";
-        content = text.substring("Transcript:".length).trim();
-    } else if (text.startsWith("Response:")) {
-        messageType = "ai";
-        content = text.substring("Response:".length).trim();
-    }
-    ```
-    
-    The message type (transcript, response, or system) is determined based on the prefix of the message. The content is extracted by removing the prefix.
+## Running and Troubleshooting
 
-3.  **Display the message**:
-    
-    ```js
-    const responseElement = document.getElementById("response");
-    // ... (Create message elements) ...
-    responseElement.appendChild(wrapper);
-    responseElement.scrollTop = responseElement.scrollHeight;
-    ```
-    
-    The message is displayed in the UI with a timestamp. The `responseElement` is the container for the conversation history.
+- Always run the application via `http://localhost` or a similar local server.  
+- Grant camera and microphone permissions when prompted.
+- If multiple cameras are connected, select the desired one from the dropdown.
+- If you see only one camera or no camera, ensure you’re serving the page via a web server and not opening `index.html` directly from your filesystem.
+
+## License
+
