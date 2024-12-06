@@ -1,10 +1,10 @@
 # Vertex - Gemini Multimodal Chat Demo
 
-This application demonstrates a multimodal streaming Large Language Model (LLM) chat experience using Google's Vertex AI and Gemini model variants via WebRTC. It shows how to connect to the streaming LLM API, display live processed video with an overlay, send and receive text/chat data, and collect WebRTC metrics.
+This application demonstrates a multimodal streaming Large Language Model (LLM) chat experience using Google's Vertex AI and Gemini model variants via WebRTC. It shows how to connect to the streaming LLM API, display live processed video with an overlay, send and receive text/chat/audio data, and collect WebRTC metrics.
 
 ## Key Features
 
-- **Multimodal LLM Interaction**: Streams audio and video to a Gemini model and receives back text-based responses.
+- **Multimodal LLM Interaction**: Streams audio and video to a Gemini model and receives back text-based and voice-based responses.
 - **Camera Selection**: Enumerates all available video input devices and allows the user to select which camera to use.  
 - **Dynamic Overlay**: Adds a customizable text overlay to the outgoing video feed.
 - **WebRTC Metrics**: Displays current bytes sent/received, packet loss, and round-trip time metrics.
